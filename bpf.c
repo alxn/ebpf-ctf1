@@ -39,8 +39,8 @@ int _egress(struct __sk_buff *skb) {
     if (ip->saddr != 0x0201ca64) /* 100.202.1.2 */
 	    return TC_ACT_OK;
 
+    __u32 new_daddr = 0x0101ca64; /* 100.202.1.1 */
     if (ip->daddr == 0x0301ca64) { /* 100.202.1.3 */
-	__u32 new_daddr = 0x0101ca64; /* 100.202.1.1 */
 	sum = bpf_csum_diff(&ip->daddr, 4, &new_daddr, 4, 0);
 
 	ret = bpf_skb_store_bytes(skb, l3_off + offsetof(struct iphdr, daddr), &new_daddr, 4, 0);
@@ -52,7 +52,24 @@ int _egress(struct __sk_buff *skb) {
 
 	return TC_ACT_OK;
     }
+    // Remember to change the saddr.
+    if (ip->daddr == 0x0401ca64) { /* 100.202.1.4 */
+	if (bpf_l3_csum_replace(skb, l3_off + offsetof(struct iphdr, check), ip->daddr, new_daddr, 4) < 0) {
+	  return TC_ACT_SHOT;
+	}
 
+	if (bpf_skb_store_bytes(skb, l3_off + offsetof(struct iphdr, daddr), &new_daddr, 4, 0) < 0) {
+	  return TC_ACT_SHOT;
+	}
+
+	return TC_ACT_OK;
+    }
+    if (ip->daddr == 0x0501ca64) { /* 100.202.1.5 */
+	if (bpf_skb_store_bytes(skb, l3_off + offsetof(struct iphdr, daddr), &new_daddr, 4, BPF_F_RECOMPUTE_CSUM) < 0)
+	  return TC_ACT_SHOT;
+
+	return TC_ACT_OK;
+    }
     return TC_ACT_OK;
 }
 
@@ -84,7 +101,7 @@ int _ingress(struct __sk_buff *skb) {
     if (ip->saddr != 0x0101ca64) /* 100.202.1.1 */
 	    return TC_ACT_OK;
 
-    __u32 new_saddr = 0x0301ca64; /* 100.202.1.3 */
+    __u32 new_saddr = 0x0501ca64; /* 100.202.1.3 */
     sum = bpf_csum_diff(&ip->saddr, 4, &new_saddr, 4, 0);
 
     ret = bpf_skb_store_bytes(skb, l3_off + offsetof(struct iphdr, saddr), &new_saddr, 4, 0);
