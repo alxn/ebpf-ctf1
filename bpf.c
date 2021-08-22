@@ -31,15 +31,27 @@ int _egress(struct __sk_buff *skb) {
     if (ip->protocol != IPPROTO_UDP)
 	    return TC_ACT_OK;
 
-    if (ip->daddr != 0x0301ca64) /* 100.202.1.3 */
+    if ((ip->daddr & 0x00ffffff) != 0x0001ca64) { /* 100.202.1.0/24 */
+	    bpf_printk("Different subnet\n");
 	    return TC_ACT_OK;
+    }
 
     if (ip->saddr != 0x0201ca64) /* 100.202.1.2 */
 	    return TC_ACT_OK;
 
-    bpf_printk("Sending request. Now do something with it...\n");
+    if (ip->daddr == 0x0301ca64) { /* 100.202.1.3 */
+	__u32 new_daddr = 0x0101ca64; /* 100.202.1.1 */
+	sum = bpf_csum_diff(&ip->daddr, 4, &new_daddr, 4, 0);
 
-    /* TODO solution */
+	ret = bpf_skb_store_bytes(skb, l3_off + offsetof(struct iphdr, daddr), &new_daddr, 4, 0);
+	if (ret < 0)
+	  return TC_ACT_SHOT;
+
+	if (bpf_l3_csum_replace(skb, l3_off + offsetof(struct iphdr, check), 0, sum, 0) < 0)
+	  return TC_ACT_SHOT;
+
+	return TC_ACT_OK;
+    }
 
     return TC_ACT_OK;
 }
