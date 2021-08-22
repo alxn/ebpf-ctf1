@@ -1,0 +1,7 @@
+# Tips
+
+  - To build `bpf.c` run `make`
+  - To (re-)attach the built BPF program, invoke `make run`
+  - The output of `bpf_printk` is visible in `cat /sys/kernel/debug/tracing/trace_pipe`
+  - Take a look at what `bpf_helpers_defs.h` has to offer
+
